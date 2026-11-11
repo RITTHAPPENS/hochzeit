@@ -196,6 +196,7 @@ const ROUTES = {
   ideen: { label: "Ideenboard", icon: "image", view: viewIdeas },
   ausgaben: { label: "Ausgaben", icon: "euro", view: viewExpenses },
   gaeste: { label: "Gäste", icon: "users", view: viewGuests },
+  helfer: { label: "Helfer", icon: "hands", view: viewHelpers },
   dienstleister: { label: "Dienstleister", icon: "shop", view: viewVendors },
   ablauf: { label: "Tagesablauf", icon: "clock", view: viewTimeline },
   einstellungen: { label: "Einstellungen", icon: "gear", view: viewSettings },
@@ -211,7 +212,7 @@ function shell() {
   const tabs = ["", "aufgaben", "ideen", "ausgaben"]
     .map((k) => `<a href="#/${k}" class="${k === r ? "on" : ""}">${icon(ROUTES[k].icon)}${ROUTES[k].label.replace("Ideenboard", "Ideen")}</a>`)
     .join("");
-  const moreOn = ["gaeste", "dienstleister", "ablauf", "einstellungen"].includes(r);
+  const moreOn = ["gaeste", "helfer", "dienstleister", "ablauf", "einstellungen"].includes(r);
   $("#app").innerHTML = `
     <div class="shell">
       <aside class="side">
@@ -228,7 +229,7 @@ function shell() {
   $("[data-more]").addEventListener("click", () =>
     openModal(
       `<div class="m-head"><h2>Mehr</h2><button class="icon-btn" data-close>${icon("x")}</button></div>
-       <div class="sheet-menu">${["gaeste", "dienstleister", "ablauf", "einstellungen"]
+       <div class="sheet-menu">${["gaeste", "helfer", "dienstleister", "ablauf", "einstellungen"]
          .map((k) => `<a href="#/${k}" data-close>${icon(ROUTES[k].icon)}${ROUTES[k].label}</a>`)
          .join("")}</div>`,
     ),
@@ -803,9 +804,12 @@ function budgetForm(cats) {
 // Gäste
 // =====================================================================
 const GUEST_GROUPS = ["Familie", "Freunde", "Kollegen", "Nachbarn", "Verein", "Sonstige"];
+const STAGES = [["standesamt", "Ab Standesamt"], ["trauung", "Ab freier Trauung"], ["abend", "Nur Abendfeier"]];
+const STAGE_LABEL = Object.fromEntries(STAGES);
 const guestFields = () => [
   { name: "name", label: "Name (oder Familie)", required: true, full: true },
   { name: "persons", label: "Personen", type: "number", default: 1 },
+  { name: "from_stage", label: "Dabei", type: "select", options: STAGES, default: "trauung" },
   { name: "rsvp", label: "Rückmeldung", type: "select", options: [["offen", "Offen"], ["zugesagt", "Zugesagt"], ["abgesagt", "Abgesagt"]] },
   { name: "grp", label: "Gruppe", type: "select", options: GUEST_GROUPS },
   { name: "side", label: "Seite", type: "select", options: [["beide", "Beide"], ...S.members.filter((m) => m.role === "paar").map((m) => [m.name, m.name])] },
@@ -815,27 +819,41 @@ const guestFields = () => [
 
 async function viewGuests(el) {
   const guests = await q(sb.from("guests").select("*").order("name"));
-  const sum = (st) => guests.filter((g) => !st || g.rsvp === st).reduce((s, g) => s + (g.persons || 1), 0);
+  const ppl = (list) => list.reduce((s, g) => s + (g.persons || 1), 0);
+  const coming = guests.filter((g) => g.rsvp !== "abgesagt");
+  const order = { standesamt: 0, trauung: 1, abend: 2 };
+  // Wer früher kommt, ist auch später dabei
+  const at = (stage) => coming.filter((g) => order[g.from_stage || "trauung"] <= order[stage]);
+  const yesAt = (stage) => ppl(at(stage).filter((g) => g.rsvp === "zugesagt"));
   const ql = S.guestQ.toLowerCase();
-  const shown = guests.filter((g) => !ql || `${g.name} ${g.grp} ${g.diet || ""}`.toLowerCase().includes(ql));
+  const f = S.guestStage || "alle";
+  const shown = guests.filter((g) => (!ql || `${g.name} ${g.grp} ${g.diet || ""}`.toLowerCase().includes(ql)) && (f === "alle" || (g.from_stage || "trauung") === f));
   const rsvpBadge = { offen: "", zugesagt: "green", abgesagt: "red" };
-
-  el.innerHTML = `
-    ${header("Gäste", "", `<button class="btn" data-csv>${icon("download")}CSV</button><button class="btn primary" data-new>${icon("plus")}Gast</button>`)}
-    <div class="totals">
-      <div><div class="k">Eingeladen</div><div class="v">${sum()}</div></div>
-      <div><div class="k">Zugesagt</div><div class="v" style="color:var(--accent)">${sum("zugesagt")}</div></div>
-      <div><div class="k">Noch offen</div><div class="v">${sum("offen")}</div></div>
-      <div><div class="k">Abgesagt</div><div class="v">${sum("abgesagt")}</div></div>
-    </div>
-    <input class="search" data-q placeholder="Suchen …" value="${h(S.guestQ)}" style="margin-bottom:14px;width:100%;max-width:340px">
-    ${shown.length ? `<div class="list">${shown.map((g) => `
+  const row = (g) => `
       <div class="li" data-g="${g.id}">
         <div class="grow"><div class="title">${h(g.name)}${g.persons > 1 ? ` <span class="muted">(${g.persons} Personen)</span>` : ""}</div>
           <div class="sub">${h(g.grp)}${g.side !== "beide" ? ", " + h(g.side) : ""}${g.diet ? ", " + h(g.diet) : ""}</div></div>
         <button class="badge ${rsvpBadge[g.rsvp]}" data-rsvp="${g.id}" title="Tippen zum Ändern" aria-label="Rückmeldung ${h(g.rsvp)}, tippen zum Ändern">${{ offen: "Offen", zugesagt: "Zugesagt", abgesagt: "Abgesagt" }[g.rsvp]}</button>
-      </div>`).join("")}</div>` : `<div class="empty">${guests.length ? `<b>Keine Treffer</b>Für „${h(S.guestQ)}“ gibt es keinen Gast.` : `<b>Noch keine Gäste</b>Trag Einzelpersonen oder ganze Familien ein. Die Rückmeldung änderst du später mit einem Tipp auf das Label.`}</div>`}`;
+      </div>`;
+  const groups = STAGES.map(([k, l]) => [k, l, shown.filter((g) => (g.from_stage || "trauung") === k)]).filter(([, , list]) => list.length);
 
+  el.innerHTML = `
+    ${header("Gäste", `${ppl(guests)} eingeladen, ${ppl(guests.filter((g) => g.rsvp === "abgesagt"))} abgesagt`, `<button class="btn" data-csv>${icon("download")}CSV</button><button class="btn primary" data-new>${icon("plus")}Gast</button>`)}
+    <div class="totals three">
+      <div><div class="k">Standesamt</div><div class="v">${ppl(at("standesamt"))}</div><div class="small muted">${yesAt("standesamt")} zugesagt</div></div>
+      <div><div class="k">Freie Trauung</div><div class="v">${ppl(at("trauung"))}</div><div class="small muted">${yesAt("trauung")} zugesagt</div></div>
+      <div><div class="k">Abendfeier</div><div class="v">${ppl(at("abend"))}</div><div class="small muted">${yesAt("abend")} zugesagt</div></div>
+    </div>
+    <div class="chips">${[["alle", "Alle"], ...STAGES].map(([k, l]) => `<button class="chip ${f === k ? "on" : ""}" data-stage="${k}">${l}</button>`).join("")}</div>
+    <input class="search" data-q placeholder="Suchen …" value="${h(S.guestQ)}" style="margin-bottom:16px;width:100%;max-width:340px">
+    ${groups.length ? groups.map(([k, l, list]) => `
+      <section style="margin-bottom:22px">
+        <div class="section-title"><h2>${l}</h2><span class="small muted">${((n) => `${n} ${n === 1 ? "Person" : "Personen"}`)(ppl(list.filter((g) => g.rsvp !== "abgesagt")))}</span></div>
+        <div class="list">${list.map(row).join("")}</div>
+      </section>`).join("")
+      : `<div class="empty">${guests.length ? `<b>Keine Treffer</b>Hier passt gerade kein Gast zu Suche oder Filter.` : `<b>Noch keine Gäste</b>Trag Einzelpersonen oder ganze Familien ein und wähle, ab wann sie dabei sind: Standesamt, freie Trauung oder erst abends.`}</div>`}`;
+
+  $$("[data-stage]", el).forEach((b) => b.addEventListener("click", () => { S.guestStage = b.dataset.stage; render(); }));
   $("[data-new]", el).addEventListener("click", () => openForm({ table: "guests", title: "Gast", fields: guestFields() }));
   $$("[data-g]", el).forEach((r) => r.addEventListener("click", (e) => {
     if (e.target.closest("[data-rsvp]")) return;
@@ -850,13 +868,59 @@ async function viewGuests(el) {
   const qi = $("[data-q]", el);
   qi.addEventListener("input", () => { S.guestQ = qi.value; clearTimeout(qi._t); qi._t = setTimeout(async () => { await render(); const n = $("[data-q]"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); }, 250); });
   $("[data-csv]", el).addEventListener("click", () => {
-    const rows = [["Name", "Personen", "Rückmeldung", "Gruppe", "Seite", "Essen", "Notizen"], ...guests.map((g) => [g.name, g.persons, g.rsvp, g.grp, g.side, g.diet || "", g.notes || ""])];
+    const rows = [["Name", "Personen", "Dabei", "Rückmeldung", "Gruppe", "Seite", "Essen", "Notizen"], ...guests.map((g) => [g.name, g.persons, STAGE_LABEL[g.from_stage || "trauung"], g.rsvp, g.grp, g.side, g.diet || "", g.notes || ""])];
     const csv = rows.map((r) => r.map((c) => `"${String(c ?? "").replace(/"/g, '""')}"`).join(";")).join("\n");
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
     a.download = "gaesteliste.csv";
     a.click();
   });
+}
+
+// =====================================================================
+// Helfer
+// =====================================================================
+const HELPER_JOBS = ["Aufbau", "Abbau", "Ausschank", "Bedienung", "Küche & Buffet", "Deko", "Fahrdienst", "Kinderbetreuung", "Technik & Musik", "Fotos", "Sonstiges"];
+const helperFields = () => [
+  { name: "name", label: "Name", required: true, full: true },
+  { name: "job", label: "Aufgabe", type: "select", options: HELPER_JOBS },
+  { name: "slot", label: "Wann", placeholder: "z. B. Freitag ab 16 Uhr" },
+  { name: "phone", label: "Telefon", type: "tel" },
+  { name: "confirmed", label: "Hat fest zugesagt", type: "checkbox" },
+  { name: "notes", label: "Notizen", type: "textarea" },
+];
+
+async function viewHelpers(el) {
+  const helpers = await q(sb.from("helpers").select("*").order("job").order("name"));
+  const jobs = HELPER_JOBS.filter((j) => helpers.some((x) => x.job === j));
+  const sure = helpers.filter((x) => x.confirmed).length;
+  el.innerHTML = `
+    ${header("Helfer", helpers.length ? `${helpers.length} Helfer, ${sure} fest zugesagt` : "", `<button class="btn primary" data-new>${icon("plus")}Helfer</button>`)}
+    ${helpers.length ? `<div class="grid g2" style="align-items:start">${jobs.map((j) => {
+      const list = helpers.filter((x) => x.job === j);
+      return `<section>
+        <div class="section-title"><h2>${h(j)}</h2><span class="small muted">${list.length}</span></div>
+        <div class="list">${list.map((x) => `
+          <div class="li" data-h="${x.id}">
+            <button class="check ${x.confirmed ? "on" : ""}" data-conf="${x.id}" aria-label="${x.confirmed ? "Zusage zurücknehmen" : "Als zugesagt markieren"}">${x.confirmed ? icon("tick") : ""}</button>
+            <div class="grow"><div class="title">${h(x.name)}</div>
+              ${x.slot || x.phone ? `<div class="sub">${[x.slot, x.phone].filter(Boolean).map(h).join(", ")}</div>` : ""}</div>
+            ${x.phone ? `<a class="icon-btn" href="tel:${h(x.phone.replace(/[^+\d]/g, ""))}" aria-label="${h(x.name)} anrufen" data-call>${icon("call")}</a>` : ""}
+          </div>`).join("")}</div>
+      </section>`;
+    }).join("")}</div>`
+    : `<div class="empty"><b>Noch keine Helfer</b>Sammelt hier, wer beim Aufbau, Ausschank, in der Bedienung oder beim Abbau hilft und wann. Mit dem Haken markiert ihr, wer fest zugesagt hat.</div>`}`;
+  $("[data-new]", el).addEventListener("click", () => openForm({ table: "helpers", title: "Helfer", fields: helperFields() }));
+  $$("[data-h]", el).forEach((r) => r.addEventListener("click", (e) => {
+    if (e.target.closest("[data-conf],[data-call]")) return;
+    openForm({ table: "helpers", title: "Helfer", fields: helperFields(), record: helpers.find((x) => x.id === r.dataset.h) });
+  }));
+  $$("[data-conf]", el).forEach((b) => b.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const x = helpers.find((y) => y.id === b.dataset.conf);
+    await q(sb.from("helpers").update({ confirmed: !x.confirmed }).eq("id", x.id));
+    render();
+  }));
 }
 
 // =====================================================================

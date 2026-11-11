@@ -136,7 +136,20 @@ create table if not exists public.guests (
   side        text default 'beide',
   persons     int default 1,
   rsvp        text default 'offen' check (rsvp in ('offen','zugesagt','abgesagt')),
+  from_stage  text not null default 'trauung' check (from_stage in ('standesamt','trauung','abend')),
   diet        text,
+  notes       text,
+  created_at  timestamptz default now()
+);
+
+-- ---------- Helfer ----------
+create table if not exists public.helpers (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  job         text not null default 'Aufbau',
+  slot        text,
+  phone       text,
+  confirmed   boolean default false,
   notes       text,
   created_at  timestamptz default now()
 );
@@ -184,6 +197,7 @@ alter table public.budget_categories enable row level security;
 alter table public.expenses          enable row level security;
 alter table public.guests            enable row level security;
 alter table public.vendors           enable row level security;
+alter table public.helpers           enable row level security;
 alter table public.timeline          enable row level security;
 
 -- Mitglieder: alle Mitglieder sehen sich, nur das Paar verwaltet
@@ -290,7 +304,7 @@ create policy ic_rw on public.idea_comments for all
 do $$
 declare t text;
 begin
-  foreach t in array array['budget_categories','guests','vendors'] loop
+  foreach t in array array['budget_categories','guests','vendors','helpers'] loop
     execute format('drop policy if exists %1$s_rw on public.%1$s', t);
     execute format('create policy %1$s_rw on public.%1$s for all using (public.is_member()) with check (public.is_member())', t);
   end loop;

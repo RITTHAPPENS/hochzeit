@@ -354,3 +354,5 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 18
 .inline-ic { display: inline-grid; place-items: center; vertical-align: -4px; width: 22px; height: 22px; border-radius: 6px; background: var(--surface-2); }
 .inline-ic svg { width: 15px; height: 15px; }
 @media (max-width: 520px) { .install .small { display: none; } }
+.totals.three { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 520px) { .totals.three > div { padding: 12px; } .totals.three .v { font-size: 1.2rem; } }
