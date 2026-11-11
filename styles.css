@@ -356,3 +356,6 @@ input[type=checkbox], input[type=radio] { accent-color: var(--accent); width: 18
 @media (max-width: 520px) { .install .small { display: none; } }
 .totals.three { grid-template-columns: repeat(3, 1fr); }
 @media (max-width: 520px) { .totals.three > div { padding: 12px; } .totals.three .v { font-size: 1.2rem; } }
+.side-install { margin: auto 4px 8px; justify-content: flex-start; }
+.side-install + .me { margin-top: 0; }
+.mobile-top .btn.sm { padding: 5px 11px 5px 9px; }

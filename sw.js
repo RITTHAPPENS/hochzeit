@@ -1,5 +1,5 @@
 // Einfacher Service Worker: App-Dateien cachen, Daten immer live von Supabase
-const CACHE = "hochzeit-v4";
+const CACHE = "hochzeit-v5";
 const ASSETS = ["./", "index.html", "styles.css", "app.js", "config.js", "icons.js", "fonts/geist.woff2", "manifest.json", "icons/icon.svg"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS))); self.skipWaiting(); });
 self.addEventListener("activate", (e) => {

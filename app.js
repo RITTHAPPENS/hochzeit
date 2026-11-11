@@ -218,20 +218,23 @@ function shell() {
       <aside class="side">
         <div class="brand">${h(title)}<small>${S.settings.wedding_date ? fdate(S.settings.wedding_date) : "Hochzeitsplaner"}</small></div>
         <nav class="nav">${nav}</nav>
+        ${isStandalone() ? "" : `<button class="btn side-install" data-install>${icon("phone")}Als App installieren</button>`}
         <a class="me" href="#/einstellungen">${avatar(S.me.id)}<span>${h(S.me.name)}</span></a>
       </aside>
       <div>
-        <div class="mobile-top"><div class="brand">${h(title)}</div><a href="#/einstellungen" aria-label="Einstellungen">${avatar(S.me.id)}</a></div>
+        <div class="mobile-top"><div class="brand">${h(title)}</div><div class="row" style="gap:8px">${isStandalone() ? "" : `<button class="btn sm primary" data-install>${icon("phone")}App holen</button>`}<a href="#/einstellungen" aria-label="Einstellungen">${avatar(S.me.id)}</a></div></div>
         <main id="view">${skeleton()}</main>
       </div>
       <nav class="tabbar">${tabs}<button data-more class="${moreOn ? "on" : ""}">${icon("more")}Mehr</button></nav>
     </div>`;
+  $$(".side [data-install], .mobile-top [data-install]").forEach((b) => b.addEventListener("click", startInstall));
   $("[data-more]").addEventListener("click", () =>
     openModal(
       `<div class="m-head"><h2>Mehr</h2><button class="icon-btn" data-close>${icon("x")}</button></div>
        <div class="sheet-menu">${["gaeste", "helfer", "dienstleister", "ablauf", "einstellungen"]
          .map((k) => `<a href="#/${k}" data-close>${icon(ROUTES[k].icon)}${ROUTES[k].label}</a>`)
-         .join("")}</div>`,
+         .join("")}${isStandalone() ? "" : `<a href="#" data-install-menu>${icon("phone")}Als App installieren</a>`}</div>`,
+      { onMount: (m) => $("[data-install-menu]", m)?.addEventListener("click", (e) => { e.preventDefault(); closeModal(); startInstall(); }) },
     ),
   );
 }
