@@ -257,6 +257,59 @@ function header(title, sub, actions = "") {
 }
 
 // =====================================================================
+// App installieren (Startbildschirm)
+// =====================================================================
+let installEvt = null;
+window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvt = e; if (route() === "" && S.me) refreshQuiet(); });
+window.addEventListener("appinstalled", () => { installEvt = null; store.set("installHidden", "1"); toast("App ist installiert"); });
+const store = {
+  get: (k) => { try { return localStorage.getItem(k); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isMobile = () => isIOS() || /android/i.test(navigator.userAgent);
+
+function installBanner() {
+  if (isStandalone() || store.get("installHidden")) return "";
+  if (!installEvt && !isMobile()) return "";
+  return `<div class="install" data-install-box>
+    <span class="install-ic">${icon("phone")}</span>
+    <div class="grow"><b>Als App aufs Handy</b><div class="small muted">Mit eigenem Symbol auf dem Startbildschirm, öffnet sich ohne Browserleiste.</div></div>
+    <button class="btn primary sm" data-install>${installEvt ? "Installieren" : "So geht's"}</button>
+    <button class="icon-btn" data-install-hide aria-label="Hinweis ausblenden">${icon("x")}</button>
+  </div>`;
+}
+
+async function startInstall() {
+  if (installEvt) {
+    installEvt.prompt();
+    const { outcome } = await installEvt.userChoice;
+    installEvt = null;
+    if (outcome === "accepted") { store.set("installHidden", "1"); render(); }
+    return;
+  }
+  const ios = isIOS();
+  openModal(`<div class="m-head"><h2>App auf den Startbildschirm</h2><button class="icon-btn" data-close>${icon("x")}</button></div>
+    <ol class="steps">
+      ${ios
+        ? `<li>Öffne diese Seite in <b>Safari</b>.</li>
+           <li>Tippe unten auf das Teilen-Symbol <span class="inline-ic">${icon("share")}</span>.</li>
+           <li>Wähle <b>Zum Home-Bildschirm</b> <span class="inline-ic">${icon("plusSquare")}</span> und tippe auf <b>Hinzufügen</b>.</li>`
+        : `<li>Öffne diese Seite in <b>Chrome</b>.</li>
+           <li>Tippe oben rechts auf das Menü <span class="inline-ic">${icon("more")}</span>.</li>
+           <li>Wähle <b>Zum Startbildschirm hinzufügen</b> oder <b>App installieren</b>.</li>`}
+    </ol>
+    <p class="small muted">Danach findest du den Planer wie jede andere App auf deinem Handy. Eingeloggt bleibst du dabei.</p>
+    <div class="form-actions"><div class="right"><button class="btn primary" data-close>Verstanden</button></div></div>`);
+}
+
+function bindInstall(el) {
+  $("[data-install]", el)?.addEventListener("click", startInstall);
+  $("[data-install-hide]", el)?.addEventListener("click", () => { store.set("installHidden", "1"); $("[data-install-box]", el)?.remove(); toast("Findest du jederzeit unter Einstellungen"); });
+}
+
+// =====================================================================
 // Übersicht
 // =====================================================================
 async function viewDashboard(el) {
@@ -291,6 +344,7 @@ async function viewDashboard(el) {
         ? `<div class="days"><b>${days > 0 ? days : days === 0 ? "Heute" : "Verheiratet"}</b>${days > 1 ? `<span>Tage noch</span>` : days === 1 ? `<span>Tag noch</span>` : ""}</div>`
         : isCouple() ? `<a class="btn" href="#/einstellungen">Datum eintragen</a>` : ""}
     </section>
+    ${installBanner()}
     ${openRefund > 0 && isCouple() ? `<a class="notice" href="#/ausgaben">${icon("coins")}<span>Die Trauzeugen haben ${eur(openRefund)} ausgelegt, die noch nicht erstattet sind.</span></a>` : ""}
     <div class="status">
       <a href="#/aufgaben"><div class="k">${icon("check")}Aufgaben offen</div><div class="v">${tasks.length} <small>${mine.length} bei dir</small></div></a>
@@ -309,6 +363,7 @@ async function viewDashboard(el) {
       </section>
     </div>`;
   bindTaskCards(el, tasks);
+  bindInstall(el);
 }
 
 // =====================================================================
@@ -909,7 +964,7 @@ async function viewSettings(el) {
         <h2 style="margin-bottom:10px">Dein Konto</h2>
         <p class="muted small" style="margin-top:0">Angemeldet als ${h(S.me.name)} auf diesem Gerät</p>
         <div class="row wrap"><button class="btn" data-me>Name & Farbe ändern</button><button class="btn danger" data-logout>Abmelden</button></div>
-        <p class="muted small">Tipp: Im Handy-Browser „Zum Startbildschirm hinzufügen“, dann läuft der Planer wie eine App.</p>
+        ${isStandalone() ? `<p class="muted small">Läuft als App auf diesem Gerät.</p>` : `<button class="btn" data-install style="margin-top:12px">${icon("phone")}Als App installieren</button>`}
       </div>
     </div>`;
 
@@ -970,6 +1025,7 @@ async function viewSettings(el) {
   $("[data-add]", el)?.addEventListener("click", () => memberForm({}));
   if (isCouple()) $$("[data-m]", el).forEach((r) => r.addEventListener("click", () => memberForm(member(r.dataset.m))));
   $("[data-me]", el).addEventListener("click", () => memberForm(S.me, !isCouple()));
+  bindInstall(el);
 }
 
 // =====================================================================
