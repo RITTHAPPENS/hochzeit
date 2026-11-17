@@ -136,7 +136,7 @@ create table if not exists public.guests (
   side        text default 'beide',
   persons     int default 1,
   rsvp        text default 'offen' check (rsvp in ('offen','zugesagt','abgesagt')),
-  from_stage  text not null default 'trauung' check (from_stage in ('standesamt','trauung','abend')),
+  from_stage  text not null default 'trauung' check (from_stage in ('standesamt','trauung','kaffee','abend')),
   diet        text,
   notes       text,
   created_at  timestamptz default now()

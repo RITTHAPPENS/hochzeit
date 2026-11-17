@@ -807,7 +807,7 @@ function budgetForm(cats) {
 // Gäste
 // =====================================================================
 const GUEST_GROUPS = ["Familie", "Freunde", "Kollegen", "Nachbarn", "Verein", "Sonstige"];
-const STAGES = [["standesamt", "Ab Standesamt"], ["trauung", "Ab freier Trauung"], ["abend", "Nur Abendfeier"]];
+const STAGES = [["standesamt", "Ab Standesamt"], ["trauung", "Ab freier Trauung"], ["kaffee", "Ab Kaffee & Kuchen"], ["abend", "Nur Abendfeier"]];
 const STAGE_LABEL = Object.fromEntries(STAGES);
 const guestFields = () => [
   { name: "name", label: "Name (oder Familie)", required: true, full: true },
@@ -824,7 +824,7 @@ async function viewGuests(el) {
   const guests = await q(sb.from("guests").select("*").order("name"));
   const ppl = (list) => list.reduce((s, g) => s + (g.persons || 1), 0);
   const coming = guests.filter((g) => g.rsvp !== "abgesagt");
-  const order = { standesamt: 0, trauung: 1, abend: 2 };
+  const order = { standesamt: 0, trauung: 1, kaffee: 2, abend: 3 };
   // Wer früher kommt, ist auch später dabei
   const at = (stage) => coming.filter((g) => order[g.from_stage || "trauung"] <= order[stage]);
   const yesAt = (stage) => ppl(at(stage).filter((g) => g.rsvp === "zugesagt"));
@@ -842,9 +842,10 @@ async function viewGuests(el) {
 
   el.innerHTML = `
     ${header("Gäste", `${ppl(guests)} eingeladen, ${ppl(guests.filter((g) => g.rsvp === "abgesagt"))} abgesagt`, `<button class="btn" data-csv>${icon("download")}CSV</button><button class="btn primary" data-new>${icon("plus")}Gast</button>`)}
-    <div class="totals three">
+    <div class="totals four">
       <div><div class="k">Standesamt</div><div class="v">${ppl(at("standesamt"))}</div><div class="small muted">${yesAt("standesamt")} zugesagt</div></div>
       <div><div class="k">Freie Trauung</div><div class="v">${ppl(at("trauung"))}</div><div class="small muted">${yesAt("trauung")} zugesagt</div></div>
+      <div><div class="k">Kaffee & Kuchen</div><div class="v">${ppl(at("kaffee"))}</div><div class="small muted">${yesAt("kaffee")} zugesagt</div></div>
       <div><div class="k">Abendfeier</div><div class="v">${ppl(at("abend"))}</div><div class="small muted">${yesAt("abend")} zugesagt</div></div>
     </div>
     <div class="chips">${[["alle", "Alle"], ...STAGES].map(([k, l]) => `<button class="chip ${f === k ? "on" : ""}" data-stage="${k}">${l}</button>`).join("")}</div>
@@ -854,7 +855,7 @@ async function viewGuests(el) {
         <div class="section-title"><h2>${l}</h2><span class="small muted">${((n) => `${n} ${n === 1 ? "Person" : "Personen"}`)(ppl(list.filter((g) => g.rsvp !== "abgesagt")))}</span></div>
         <div class="list">${list.map(row).join("")}</div>
       </section>`).join("")
-      : `<div class="empty">${guests.length ? `<b>Keine Treffer</b>Hier passt gerade kein Gast zu Suche oder Filter.` : `<b>Noch keine Gäste</b>Trag Einzelpersonen oder ganze Familien ein und wähle, ab wann sie dabei sind: Standesamt, freie Trauung oder erst abends.`}</div>`}`;
+      : `<div class="empty">${guests.length ? `<b>Keine Treffer</b>Hier passt gerade kein Gast zu Suche oder Filter.` : `<b>Noch keine Gäste</b>Trag Einzelpersonen oder ganze Familien ein und wähle, ab wann sie dabei sind: Standesamt, freie Trauung, Kaffee & Kuchen oder erst abends.`}</div>`}`;
 
   $$("[data-stage]", el).forEach((b) => b.addEventListener("click", () => { S.guestStage = b.dataset.stage; render(); }));
   $("[data-new]", el).addEventListener("click", () => openForm({ table: "guests", title: "Gast", fields: guestFields() }));
